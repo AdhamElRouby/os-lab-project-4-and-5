@@ -1,5 +1,7 @@
 /* Enable POSIX functions, including clock_gettime() */
 #define _POSIX_C_SOURCE 200809L
+#define _DEFAULT_SOURCE   // MAP_ANONYMOUS on Linux
+#define _DARWIN_C_SOURCE  // MAP_ANON on macOS
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,10 +24,7 @@
 #endif
 #define MIN_PROCESSES 1       // Min processes (threads) is 1
 #ifndef MAX_PROCESSES
-#define MAX_PROCESSES 128     // testing until 128 processes (threads)
-#endif
-#ifndef PROCESS_STEP
-#define PROCESS_STEP 2        // n_proc = 1, 2, 4, 6, ..., 128
+#define MAX_PROCESSES 640     // testing until 640 processes (threads), past the point where they cross sequential
 #endif
 #ifndef REPETITIONS
 #define REPETITIONS 51        // repeating 51 times for each n_proc (odd for a clean median)
@@ -35,6 +34,14 @@
 unsigned long add(unsigned long a, unsigned long b)
 {
     return a + b;
+}
+
+// next n_proc to test: step 1 up to 32, step 8 up to 128, then step 32
+int next_n_proc(int n_proc)
+{
+    if (n_proc < 32) return n_proc + 1;
+    if (n_proc < 128) return n_proc + 8;
+    return n_proc + 32;
 }
 
 // calculating the elapsed time in seconds
@@ -192,8 +199,9 @@ int main(void)
     fflush(stdout);
 
     // increasing the number of processes (threads)
-    // after 1 we jump to 2 so the even steps still end exactly at MAX_PROCESSES
-    for (int n_proc = MIN_PROCESSES; n_proc <= MAX_PROCESSES; n_proc = (n_proc == 1) ? 2 : n_proc + PROCESS_STEP) {
+    // dense where the curve changes fast, sparse where it rises linearly:
+    // 1..32 step 1 (around the 10 cores), 40..128 step 8, 160..640 step 32
+    for (int n_proc = MIN_PROCESSES; n_proc <= MAX_PROCESSES; n_proc = next_n_proc(n_proc)) {
 
         // confirming correctness (also an untimed warm-up run)
         if (!verify_results(n_proc)) {
